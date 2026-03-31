@@ -276,6 +276,11 @@ async function analyzeKeyword(
   });
 
   // Step 4: Claude Pass 2 - Service Validation + Page Structure
+  await prisma.keywordAnalysis.update({
+    where: { id: analysisId },
+    data: { status: "analyzing_pass2" },
+  });
+
   const serviceValidation: ServiceValidationOutput = await validateServiceAndStructure({
     keyword,
     onboardingSummary,
@@ -292,6 +297,11 @@ async function analyzeKeyword(
   });
 
   // Step 5: Semantic variation SERP overlap check (Mangools related keywords)
+  await prisma.keywordAnalysis.update({
+    where: { id: analysisId },
+    data: { status: "semantic_variations" },
+  });
+
   let semanticVariations: { variation: string; overlapDomains: string[]; verdict: string }[] = [];
   try {
     const relatedKws = await fetchRelatedKeywords(keyword, client.locationId, client.languageId);
@@ -410,6 +420,10 @@ async function analyzeKeyword(
   }
 
   // Step 7: Claude Pass 3 - Self-Validation
+  await prisma.keywordAnalysis.update({
+    where: { id: analysisId },
+    data: { status: "self_validating" },
+  });
   const validation = await selfValidate({
     keyword,
     volume,

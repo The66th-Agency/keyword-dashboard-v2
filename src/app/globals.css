@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-space-grotesk);
+  --font-heading: var(--font-instrument-serif);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,73 +48,49 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
+/* Dark mode only - The 66th brand kit */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #04070D;
+  --foreground: #E4E9F2;
+  --card: #04070D;
+  --card-foreground: #D5DBE6;
+  --popover: #10131C;
+  --popover-foreground: #E4E9F2;
+  --primary: #006FFF;
+  --primary-foreground: #E4E9F2;
+  --secondary: #10131C;
+  --secondary-foreground: #D5DBE6;
+  --muted: #10131C;
+  --muted-foreground: #B8C7D9;
+  --accent: #B1E5E3;
+  --accent-foreground: #04070D;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: #d8e7f212;
+  --input: #d8e7f21a;
+  --ring: #006FFF;
+  --radius: 1rem;
+
+  /* Brand tokens */
+  --accent-teal: #B1E5E3;
+  --light-accent: #A6DAFF;
+  --card-shadow: inset 0 2px 1px 0 rgba(207,231,255,0.2);
+
+  /* Chart colours */
+  --chart-1: #B1E5E3;
+  --chart-2: #006FFF;
+  --chart-3: #B8C7D9;
+  --chart-4: #A6DAFF;
+  --chart-5: #D5DBE6;
+
+  /* Sidebar */
+  --sidebar: #10131C;
+  --sidebar-foreground: #E4E9F2;
+  --sidebar-primary: #006FFF;
+  --sidebar-primary-foreground: #E4E9F2;
+  --sidebar-accent: #10131C;
+  --sidebar-accent-foreground: #E4E9F2;
+  --sidebar-border: #d8e7f212;
+  --sidebar-ring: #006FFF;
 }
 
 @layer base {
@@ -126,5 +102,16 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* Brand utility classes */
+@layer utilities {
+  .font-numbers {
+    font-family: var(--font-space-grotesk), ui-monospace, monospace;
+  }
+  .font-keyword {
+    font-family: var(--font-instrument-serif), Georgia, serif;
+    font-style: italic;
   }
 }

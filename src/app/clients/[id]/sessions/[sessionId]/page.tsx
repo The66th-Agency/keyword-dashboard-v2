@@ -85,6 +85,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
   const [screenResults, setScreenResults] = useState<ScreenResult[] | null>(null);
   const [screenError, setScreenError] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [expandedAnalysis, setExpandedAnalysis] = useState<Set<string>>(new Set());
   const [gscContext, setGscContext] = useState<Record<string, {
     existingRanking: { query: string; page: string; avgPosition: number; impressions: number; clicks: number }[];
     cannibalization: { query: string; severity: string; pages: { url: string; avgPosition: number; impressions: number }[] }[];
@@ -429,39 +430,98 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
       )}
 
       {/* Phase: Analyzing */}
-      {phase === "analyzing" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Deep Analysis in Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {analyses.map((a) => (
-                <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{a.keyword}</span>
-                    {a.status === "complete" && <Badge variant="default" className="text-xs">Complete</Badge>}
-                    {a.status === "failed" && <Badge variant="destructive" className="text-xs">Failed</Badge>}
-                    {a.status !== "complete" && a.status !== "failed" && (
-                      <Badge variant="outline" className="text-xs animate-pulse">{a.status.replace(/_/g, " ")}</Badge>
-                    )}
-                  </div>
-                  {a.status === "complete" && (
-                    <span className="text-xs text-muted-foreground">Vol: {a.volume} | KD: {a.kd}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {phase === "analyzing" && (() => {
+        const ANALYSIS_STEPS = [
+          { key: "fetching_serp", label: "Fetching SERP data" },
+          { key: "fetching_pages", label: "Fetching competitor pages" },
+          { key: "analyzing", label: "Competitive analysis (Claude Pass 1)" },
+          { key: "analyzing_pass2", label: "Service validation (Claude Pass 2)" },
+          { key: "semantic_variations", label: "Semantic variation check" },
+          { key: "self_validating", label: "Self-validation (Claude Pass 3)" },
+        ];
+        const getStepIndex = (status: string) => {
+          const idx = ANALYSIS_STEPS.findIndex((s) => s.key === status);
+          return idx >= 0 ? idx : (status === "complete" ? ANALYSIS_STEPS.length : -1);
+        };
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Deep Analysis in Progress</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {analyses.map((a) => {
+                  const isExpanded = expandedAnalysis.has(a.id);
+                  const activeStep = getStepIndex(a.status);
+                  return (
+                    <div key={a.id} className="rounded-lg border border-border overflow-hidden">
+                      <button
+                        onClick={() => setExpandedAnalysis((prev) => {
+                          const next = new Set(prev);
+                          next.has(a.id) ? next.delete(a.id) : next.add(a.id);
+                          return next;
+                        })}
+                        className="w-full flex items-center justify-between p-3 hover:bg-[#10131C]/50 transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">{isExpanded ? "▾" : "▸"}</span>
+                          <span className="text-sm font-medium font-keyword">{a.keyword}</span>
+                          {a.status === "complete" && <Badge variant="default" className="text-xs">Complete</Badge>}
+                          {a.status === "failed" && <Badge variant="destructive" className="text-xs">Failed</Badge>}
+                          {a.status !== "complete" && a.status !== "failed" && (
+                            <Badge variant="outline" className="text-xs animate-pulse">{a.status.replace(/_/g, " ")}</Badge>
+                          )}
+                        </div>
+                        {a.status === "complete" && (
+                          <span className="text-xs text-muted-foreground font-numbers">Vol: {a.volume} | KD: {a.kd}</span>
+                        )}
+                      </button>
+                      {isExpanded && (
+                        <div className="px-3 pb-3 pt-1 border-t border-border">
+                          <div className="space-y-1.5 ml-2">
+                            {ANALYSIS_STEPS.map((step, i) => {
+                              const isDone = activeStep > i || a.status === "complete";
+                              const isActive = activeStep === i && a.status !== "complete" && a.status !== "failed";
+                              return (
+                                <div key={step.key} className="flex items-center gap-2.5">
+                                  <div className={`w-2 h-2 rounded-full shrink-0 ${isDone ? "bg-[#B1E5E3]" : isActive ? "bg-[#006FFF] animate-pulse" : "border border-border"}`} />
+                                  <span className={`text-xs ${isDone ? "text-[#B1E5E3]/70" : isActive ? "text-foreground font-medium" : "text-muted-foreground/50"}`}>
+                                    {step.label}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {a.status === "failed" && a.error && (
+                              <div className="flex items-center gap-2.5 mt-1">
+                                <div className="w-2 h-2 rounded-full shrink-0 bg-destructive" />
+                                <span className="text-xs text-destructive">{a.error}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Phase: Review */}
       {phase === "review" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Review Analyses</h2>
-            <span className="text-sm text-muted-foreground">{pendingReviewAnalyses.length} pending review</span>
+            <div className="flex items-center gap-3">
+              {approvedCandidates.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => window.open(`/api/sessions/${sessionId}/export`, "_blank")}>
+                  Export ({approvedCandidates.length})
+                </Button>
+              )}
+              <span className="text-sm text-muted-foreground">{pendingReviewAnalyses.length} pending review</span>
+            </div>
           </div>
 
           {pendingReviewAnalyses.map((analysis) => {
@@ -489,8 +549,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
             return (
               <Card key={analysis.id}>
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-                    <span>{analysis.keyword}</span>
+                  <CardTitle className="flex items-center gap-3 flex-wrap">
+                    <span className="font-keyword text-lg">{analysis.keyword}</span>
                     <Badge variant="outline" className="text-xs">{analysis.intentConfirmation || candidate.funnelStage}</Badge>
                     {candidate.tailLength && (
                       <Badge variant="outline" className={`text-xs ${TAIL_COLORS[candidate.tailLength] || ""}`}>
@@ -502,25 +562,27 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
                     </Badge>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-5">
                   {/* Source warnings */}
                   {compAnalysis.pagesSource === "web_search" && (
-                    <p className="text-xs text-amber-400">⚠ Pages blocked - analysis via web search. Validate against SERP.</p>
+                    <p className="text-xs text-amber-400">Pages blocked - analysis via web search. Validate against SERP.</p>
                   )}
                   {compAnalysis.pagesSource === "partial" && (
-                    <p className="text-xs text-amber-400">⚠ {compAnalysis.blockedCount}/{compAnalysis.totalPages} pages blocked. Partial data.</p>
+                    <p className="text-xs text-amber-400">{compAnalysis.blockedCount}/{compAnalysis.totalPages} pages blocked. Partial data.</p>
                   )}
                   {analysis.serviceMatch === "mismatch" && (
-                    <p className="text-xs text-destructive font-medium">✕ Service mismatch: {analysis.serviceMatchNote}</p>
+                    <p className="text-xs text-destructive font-medium">Service mismatch: {analysis.serviceMatchNote}</p>
                   )}
 
-                  {/* Metrics row */}
-                  <div className="flex gap-3 text-xs flex-wrap items-center">
-                    <span className={isZeroVolume ? "text-amber-400 font-medium" : ""}>
-                      Vol {analysis.volume}
-                      {isZeroVolume && (clientDA <= 5 ? " (OK low-DA)" : " ⚠")}
+                  {/* Metrics bar */}
+                  <div className="flex gap-4 text-xs flex-wrap items-center">
+                    <span className={isZeroVolume ? "text-amber-400 font-medium" : "text-[#B1E5E3]"}>
+                      <span className="font-numbers">{analysis.volume.toLocaleString()}</span> vol
+                      {isZeroVolume && (clientDA <= 5 ? " (OK low-DA)" : "")}
                     </span>
-                    <span className="text-muted-foreground">KD {analysis.kd}</span>
+                    <span className="text-[#B1E5E3]/70">
+                      KD <span className="font-numbers">{analysis.kd}</span>
+                    </span>
                     <Badge variant={analysis.competitorTargetingScore === "none" ? "default" : "outline"} className="text-xs">
                       {analysis.competitorTargetingScore || "?"} targeting
                     </Badge>
@@ -529,24 +591,24 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
                     </Badge>
                   </div>
 
-                  {/* Intent */}
-                  {analysis.intentEvidence && (
-                    <p className="text-xs text-muted-foreground"><span className="text-foreground font-medium">Intent: </span>{analysis.intentEvidence}</p>
-                  )}
-
-                  {/* Competitive analysis */}
-                  {compAnalysis.commonalities && (
-                    <div className="text-xs">
-                      <span className="font-medium text-foreground">In common: </span>
-                      <span className="text-muted-foreground">{compAnalysis.commonalities}</span>
-                    </div>
-                  )}
-                  {compAnalysis.gaps && (
-                    <div className="text-xs">
-                      <span className="font-medium text-foreground">Gaps: </span>
-                      <span className="text-muted-foreground">{compAnalysis.gaps}</span>
-                    </div>
-                  )}
+                  {/* Intent & Competitive Analysis */}
+                  <div className="border-l-2 border-[#B1E5E3]/20 pl-3 space-y-3">
+                    {analysis.intentEvidence && (
+                      <p className="text-xs text-muted-foreground"><span className="text-foreground font-medium">Intent: </span>{analysis.intentEvidence}</p>
+                    )}
+                    {compAnalysis.commonalities && (
+                      <div className="text-xs">
+                        <span className="font-medium text-foreground">In common: </span>
+                        <span className="text-muted-foreground">{compAnalysis.commonalities}</span>
+                      </div>
+                    )}
+                    {compAnalysis.gaps && (
+                      <div className="text-xs">
+                        <span className="font-medium text-foreground">Gaps: </span>
+                        <span className="text-muted-foreground">{compAnalysis.gaps}</span>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Targeting */}
                   {targeting.length > 0 && (
@@ -554,11 +616,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
                       {targeting.map((t, i) => (
                         <div key={i} className="text-xs flex items-center gap-1">
                           <span className="text-muted-foreground truncate max-w-[180px]">{new URL(t.url).hostname}</span>
-                          {t.keywordInTitle && <span className="text-foreground">T</span>}
-                          {t.keywordInH1 && <span className="text-foreground">H1</span>}
-                          {t.keywordInUrl && <span className="text-foreground">URL</span>}
+                          {t.keywordInTitle && <span className="text-foreground font-medium">T</span>}
+                          {t.keywordInH1 && <span className="text-foreground font-medium">H1</span>}
+                          {t.keywordInUrl && <span className="text-foreground font-medium">URL</span>}
                           {!t.keywordInTitle && !t.keywordInH1 && !t.keywordInUrl && !t.keywordInFirstParagraph && (
-                            <span className="text-green-400">not targeting</span>
+                            <span className="text-[#B1E5E3]">not targeting</span>
                           )}
                         </div>
                       ))}
@@ -578,11 +640,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
 
                   {/* Page structure */}
                   {outline.sections && outline.sections.length > 0 && (
-                    <div>
-                      <div className="text-xs font-medium mb-1">
+                    <div className="border-l-2 border-[#B1E5E3]/10 pl-3">
+                      <div className="text-xs font-medium mb-2">
                         Page structure {outline.wordCountGuidance && <span className="font-normal text-muted-foreground">({outline.wordCountGuidance})</span>}
                       </div>
-                      <div className="space-y-0.5">
+                      <div className="space-y-1">
                         {outline.sections.map((s, i) => (
                           <div key={i} className="text-xs flex items-start gap-1.5">
                             <Badge variant={s.type === "must_have" ? "secondary" : s.type === "gap" ? "default" : "outline"} className="text-xs shrink-0">{s.type.replace("_", " ")}</Badge>
@@ -591,25 +653,25 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
                         ))}
                       </div>
                       {outline.faqSuggestions && outline.faqSuggestions.length > 0 && (
-                        <div className="mt-1 text-xs text-muted-foreground">FAQ: {outline.faqSuggestions.slice(0, 3).join(" / ")}{outline.faqSuggestions.length > 3 ? ` +${outline.faqSuggestions.length - 3}` : ""}</div>
+                        <div className="mt-2 text-xs text-muted-foreground">FAQ: {outline.faqSuggestions.slice(0, 3).join(" / ")}{outline.faqSuggestions.length > 3 ? ` +${outline.faqSuggestions.length - 3}` : ""}</div>
                       )}
                     </div>
                   )}
 
-                  {/* Flags */}
-                  {confNote.flags && confNote.flags.length > 0 && (
-                    <div className="space-y-0.5">
-                      {confNote.flags.map((f, i) => <div key={i} className="text-xs text-amber-400">⚠ {f}</div>)}
+                  {/* Flags & Warnings */}
+                  {((confNote.flags && confNote.flags.length > 0) || confNote.recommendation) && (
+                    <div className="border-l-2 border-amber-400/20 pl-3 space-y-1">
+                      {confNote.flags && confNote.flags.map((f, i) => <div key={i} className="text-xs text-amber-400">{f}</div>)}
+                      {confNote.recommendation && (
+                        <p className="text-xs font-medium text-foreground">{confNote.recommendation}</p>
+                      )}
                     </div>
-                  )}
-                  {confNote.recommendation && (
-                    <p className="text-xs font-medium">{confNote.recommendation}</p>
                   )}
 
                   {/* GSC Ranking Context */}
-                  {gscContext[analysis.keyword] && (
-                    <div className="space-y-1 rounded-md bg-muted/30 px-3 py-2">
-                      <p className="text-xs font-medium">GSC Ranking Context</p>
+                  {gscContext[analysis.keyword] && (gscContext[analysis.keyword].cannibalization.length > 0 || gscContext[analysis.keyword].existingRanking.length > 0) && (
+                    <div className="space-y-1.5 rounded-lg bg-[#10131C]/50 px-3 py-2.5">
+                      <p className="text-xs font-medium text-[#B1E5E3]">GSC Ranking Context</p>
                       {gscContext[analysis.keyword].cannibalization.length > 0 && (
                         <div className="space-y-0.5">
                           {gscContext[analysis.keyword].cannibalization.map((c, i) => (
@@ -623,26 +685,22 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
                         <div className="space-y-0.5">
                           {gscContext[analysis.keyword].existingRanking.slice(0, 5).map((r, i) => (
                             <div key={i} className="text-xs text-muted-foreground">
-                              Already ranking: &quot;{r.query}&quot; — pos {r.avgPosition.toFixed(1)}, {r.impressions} imp ({new URL(r.page).pathname})
+                              Ranking: &quot;{r.query}&quot; — pos <span className="font-numbers">{r.avgPosition.toFixed(1)}</span>, <span className="font-numbers">{r.impressions}</span> imp ({new URL(r.page).pathname})
                             </div>
                           ))}
                         </div>
                       )}
-                      {gscContext[analysis.keyword].cannibalization.length === 0 && gscContext[analysis.keyword].existingRanking.length === 0 && (
-                        <p className="text-xs text-muted-foreground">No existing ranking data found for this query.</p>
-                      )}
                     </div>
                   )}
 
-                  <Separator />
-
-                  <div className="flex items-start gap-2">
+                  {/* Review action bar */}
+                  <div className="bg-[#10131C]/30 -mx-4 px-4 pt-4 pb-3 mt-2 rounded-b-2xl flex items-start gap-2">
                     <textarea
                       placeholder="Notes..."
                       value={reviewNotes[candidate.id] || ""}
                       onChange={(e) => setReviewNotes({ ...reviewNotes, [candidate.id]: e.target.value })}
                       rows={1}
-                      className="flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                      className="flex-1 rounded-[8px] border border-input bg-transparent px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
                     />
                     <Button size="sm" onClick={() => handleReview(candidate.id, analysis.id, "approved")}>Approve</Button>
                     <Button size="sm" variant="outline" onClick={() => handleReview(candidate.id, analysis.id, "rejected")}>Reject</Button>
@@ -670,9 +728,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
       {/* Phase: Completed */}
       {phase === "completed" && (
         <Card>
-          <CardContent className="pt-6 text-center">
-            <div className="text-lg font-semibold mb-2">Session Complete</div>
+          <CardContent className="pt-6 text-center space-y-3">
+            <div className="text-lg font-semibold">Session Complete</div>
             <p className="text-muted-foreground">{approvedCandidates.length} keywords approved.</p>
+            <Button variant="outline" onClick={() => window.open(`/api/sessions/${sessionId}/export`, "_blank")}>
+              Export Approved Keywords (TSV)
+            </Button>
           </CardContent>
         </Card>
       )}
