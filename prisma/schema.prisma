@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Client {
+  id                String   @id @default(uuid())
+  name              String
+  domain            String
+  da                Int      @default(0)
+  sitemapUrl        String?
+  locationId        Int      @default(2124) // Canada=2124, US=2840, anywhere=0
+  languageId        Int      @default(1000) // English=1000
+  onboardingDoc     String?  @db.Text
+  onboardingSummary String?  @db.Text // JSON from Claude Sonnet extraction
+  pages             ExistingPage[]
+  sessions          ResearchSession[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ExistingPage {
+  id              String   @id @default(uuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  url             String
+  title           String?
+  inferredKeyword String?
+  lastScanned     DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model ResearchSession {
+  id         String             @id @default(uuid())
+  clientId   String
+  client     Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  scope      String             // e.g. "10 BOF keywords"
+  status     String             @default("idle") // idle | generating_candidates | analyzing_batch | completed
+  error      String?            @db.Text
+  candidates KeywordCandidate[]
+  analyses   KeywordAnalysis[]
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([clientId])
+}
+
+model KeywordCandidate {
+  id          String           @id @default(uuid())
+  sessionId   String
+  session     ResearchSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  keyword     String
+  rationale   String           @db.Text
+  funnelStage String           // BOF | MOF | TOF
+  tailLength  String?          // short | mid | long
+  volume      Int              @default(-1) // -1 = not yet screened, 0 = confirmed zero
+  kd          Int              @default(-1) // -1 = not yet screened
+  status      String           @default("pending") // pending | selected | skipped | analyzed | approved | rejected | redirected
+  reviewNote  String?          @db.Text
+  analysis    KeywordAnalysis?
+  createdAt   DateTime         @default(now())
+
+  @@index([sessionId])
+}
+
+model KeywordAnalysis {
+  id                        String          @id @default(uuid())
+  candidateId               String          @unique
+  candidate                 KeywordCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  sessionId                 String
+  session                   ResearchSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  keyword                   String
+  volume                    Int             @default(0)
+  kd                        Int             @default(0)
+  mangoolsRawSerpResponse   String?         @db.Text // Full JSON for field verification
+  serpCompetitors           String?         @db.Text // JSON: [{url, da, title, h1, h2s, meta, bodySnippet}]
+  intentConfirmation        String?         // BOF | MOF | TOF
+  intentEvidence            String?         @db.Text
+  targetingAssessment       String?         @db.Text // JSON: per-competitor {keywordInTitle, keywordInH1, keywordInUrl, keywordInFirstParagraph}
+  competitorTargetingScore  String?         // none | partial | direct
+  competitiveAnalysis       String?         @db.Text // Claude output: commonalities + gaps
+  semanticVariations        String?         @db.Text // JSON: [{variation, overlapDomains[], verdict}]
+  serviceMatch              String?         // confirmed | unconfirmed | mismatch
+  serviceMatchNote          String?         @db.Text
+  recommendedOutline        String?         @db.Text // JSON: sections with type + wordCountGuidance
+  confidence                String          @default("pending") // high | medium | needs_review | pending
+  confidenceNote            String?         @db.Text
+  reviewStatus              String          @default("pending_review") // pending_review | approved | rejected | redirected
+  reviewNote                String?         @db.Text
+  status                    String          @default("pending") // pending | fetching_serp | fetching_pages | analyzing | complete | failed
+  error                     String?         @db.Text
+  createdAt                 DateTime        @default(now())
+
+  @@index([sessionId])
+  @@index([candidateId])
+}
+
+model DailyUsage {
+  id       String @id @default(uuid())
+  resource String // serp_lookups | keyword_lookups
+  date     String // ISO date e.g. "2026-03-30"
+  count    Int    @default(0)
+
+  @@unique([resource, date])
+}
