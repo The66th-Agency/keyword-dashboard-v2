@@ -67,6 +67,26 @@ export async function runBatchAnalysis(sessionId: string) {
         // -1 means not yet screened - fall back to re-fetching
         const screenedVolume = candidate.volume >= 0 ? candidate.volume : undefined;
         const screenedKd = candidate.kd >= 0 ? candidate.kd : undefined;
+
+        // Hard gate: skip zero-volume keywords for DA > 5 clients (don't waste credits)
+        if (screenedVolume === 0 && client.da > 5) {
+          await prisma.keywordAnalysis.update({
+            where: { id: analysis.id },
+            data: {
+              status: "failed",
+              volume: 0,
+              kd: screenedKd ?? 0,
+              error: `Skipped: zero search volume with client DA ${client.da}. Screen step flagged this as not recommended.`,
+            },
+          });
+          await prisma.keywordCandidate.update({
+            where: { id: candidate.id },
+            data: { status: "skipped" },
+          });
+          console.log(`[Analysis] Skipped "${candidate.keyword}" - zero volume with DA ${client.da}`);
+          continue;
+        }
+
         await analyzeKeyword(analysis.id, candidate.keyword, client, onboardingSummary, existingPages, approvedKeywords, screenedVolume, screenedKd);
 
         // Mark candidate as analyzed
@@ -285,18 +305,22 @@ async function analyzeKeyword(
     console.log(`[Semantic] "${keyword}" -> ${variations.length} filtered variations from ${relatedKws.length} related`);
 
     for (const variation of variations) {
-      const varSerp = await fetchSerp(variation.keyword, client.locationId, client.languageId);
+      try {
+        const varSerp = await fetchSerp(variation.keyword, client.locationId, client.languageId);
 
-      // Compare top 5 domains
-      const primaryDomains = serpResult.items.slice(0, 5).map((i) => extractDomain(i.url));
-      const variationDomains = varSerp.items.slice(0, 5).map((i) => extractDomain(i.url));
-      const overlapDomains = primaryDomains.filter((d) => variationDomains.includes(d));
+        // Compare top 5 domains
+        const primaryDomains = serpResult.items.slice(0, 5).map((i) => extractDomain(i.url));
+        const variationDomains = varSerp.items.slice(0, 5).map((i) => extractDomain(i.url));
+        const overlapDomains = primaryDomains.filter((d) => variationDomains.includes(d));
 
-      semanticVariations.push({
-        variation: variation.keyword,
-        overlapDomains,
-        verdict: overlapDomains.length >= 3 ? "secondary" : "separate",
-      });
+        semanticVariations.push({
+          variation: variation.keyword,
+          overlapDomains,
+          verdict: overlapDomains.length >= 3 ? "secondary" : "separate",
+        });
+      } catch (e) {
+        console.log(`[Semantic] SERP failed for variation "${variation.keyword}", skipping:`, e instanceof Error ? e.message : e);
+      }
     }
   } catch (e) {
     console.error("Semantic variation check failed:", e);
@@ -338,8 +362,8 @@ async function analyzeKeyword(
   // Step 7: Claude Pass 3 - Self-Validation
   const validation = await selfValidate({
     keyword,
-    volume: serpResult.volume,
-    kd: serpResult.kd,
+    volume,
+    kd,
     clientDA: client.da,
     competitiveAnalysis,
     serviceValidation,

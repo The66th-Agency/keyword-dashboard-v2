@@ -149,14 +149,20 @@ Use web search to look up each ranking URL and analyze what they actually contai
 3. What content do they all have in common?
 4. What is missing that a well-optimised page should have?
 
-Return JSON:
+Intent classification rules (apply strictly based on what ACTUALLY ranks):
+- BOF: product pages, service pages, collection/category pages, shop pages, homepages with buy CTAs, e-commerce PDPs — anything where the primary action is purchase or hire
+- MOF: listicles ("best X", "top X"), comparison pages ("[A] vs [B]", "[competitor] alternative"), review roundups — anything where the searcher is evaluating options
+- TOF: how-to guides, educational blog posts, informational articles — anything answering "what is" or "how to"
+The page TYPE determines intent, not how "browse-y" the query feels. A collection page is BOF even if the buyer is still choosing between products.
+
+Return JSON with SHORT bullet-point style values (max 2 sentences per field, use dashes for lists):
 {
   "intentConfirmation": "BOF|MOF|TOF",
-  "intentEvidence": "what the actual pages are (product pages, service pages, etc.) and why this confirms the intent",
-  "commonalities": "what all ranking pages share in terms of content, structure, depth",
-  "gaps": "what is specifically missing from ranking pages - be concrete",
+  "intentEvidence": "1-2 sentences on what page types rank and why that confirms the intent",
+  "commonalities": "bullet list: - point 1\\n- point 2\\n- point 3 (max 5 bullets, each under 15 words)",
+  "gaps": "bullet list: - GAP NAME: one sentence explanation\\n- GAP NAME: one sentence (max 6 gaps)",
   "competitorTargetingScore": "none|partial|direct",
-  "competitorTargetingDetail": "which pages target the exact keyword and which don't"
+  "competitorTargetingDetail": "1 sentence: who targets it and how, or why nobody does"
 }`;
 
   // web_search is a server-side tool requiring the beta header.
@@ -351,7 +357,11 @@ export async function selfValidate(params: {
   semanticVariations: { variation: string; verdict: string }[];
   onboardingSummary: string;
 }): Promise<SelfValidationOutput> {
-  const system = `You are a senior SEO strategist performing a final quality check on keyword research. Be honest and critical. Return valid JSON only, no markdown fences.`;
+  const system = `You are a senior SEO strategist performing a final quality check on keyword research. Be honest and critical. Return valid JSON only, no markdown fences.
+
+HARD RULES (override all other analysis):
+- If volume is 0 and client DA > 5: recommendation MUST be "skip". Zero volume means zero measurable demand. Do not rationalize this as "tool gap" or "hidden demand" — if Mangools, Google Keyword Planner, and keyword-imports all return 0, the keyword has no verified search volume. Period.
+- If serviceMatch is "mismatch": recommendation MUST be "skip". Never recommend pursuing a keyword for a service the client does not offer.`;
 
   const prompt = `Review this keyword analysis and provide a confidence assessment.
 
