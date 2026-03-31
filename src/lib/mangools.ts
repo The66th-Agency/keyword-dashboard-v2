@@ -173,7 +173,7 @@ export async function fetchKeywordImports(
   return list.map((kw) => ({
     keyword: kw.kw as string || kw.keyword as string || "",
     volume: Number(kw.sv ?? kw.search_volume ?? kw.vol ?? kw.volume ?? 0),
-    kd: Number(kw.kd ?? kw.rank ?? 0),
+    kd: Number(kw.seo ?? kw.kd ?? 0),
   }));
 }
 
