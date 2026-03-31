@@ -54,6 +54,13 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [showPaste, setShowPaste] = useState(false);
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [newScope, setNewScope] = useState("10 BOF keywords");
+  const [gsc, setGsc] = useState<{
+    connected: boolean; linked: boolean; siteUrl?: string;
+    syncStatus?: string; syncError?: string | null; lastSyncAt?: string | null;
+    pageCount: number; queryCount: number;
+    topQueries: { query: string; impressions: number; clicks: number; avgPosition: number; page: string }[];
+  } | null>(null);
+  const [gscSyncing, setGscSyncing] = useState(false);
 
   const fetchClient = async () => {
     const res = await fetch(`/api/clients/${id}`);
@@ -72,6 +79,30 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   };
 
   useEffect(() => { fetchClient(); }, [id]);
+
+  // Fetch GSC status for this client
+  const fetchGsc = async () => {
+    try {
+      const res = await fetch(`/api/clients/${id}/gsc-sync`);
+      if (res.ok) setGsc(await res.json());
+    } catch { /* ignore */ }
+  };
+  useEffect(() => { fetchGsc(); }, [id]);
+
+  // Poll GSC during sync
+  useEffect(() => {
+    if (gsc?.syncStatus === "syncing") {
+      const interval = setInterval(fetchGsc, 3000);
+      return () => clearInterval(interval);
+    }
+    if (gscSyncing && gsc?.syncStatus === "idle") setGscSyncing(false);
+  }, [gsc?.syncStatus, gscSyncing]);
+
+  const handleGscSync = async () => {
+    setGscSyncing(true);
+    await fetch(`/api/clients/${id}/gsc-sync`, { method: "POST" });
+    setTimeout(fetchGsc, 2000);
+  };
 
   // Poll for onboarding summary if doc exists but summary doesn't
   useEffect(() => {
@@ -370,6 +401,59 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
                   {page.inferredKeyword && <Badge variant="outline" className="text-xs shrink-0">{page.inferredKeyword}</Badge>}
                 </div>
               ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Google Search Console */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Google Search Console {gsc?.linked && <Badge variant="outline" className="ml-2 text-xs">{gsc.queryCount} queries</Badge>}</span>
+            <div className="flex items-center gap-2">
+              {gsc?.connected && (
+                <Button variant="outline" size="sm" onClick={handleGscSync} disabled={gscSyncing || gsc?.syncStatus === "syncing"}>
+                  {gsc?.syncStatus === "syncing" ? "Syncing..." : "Sync GSC"}
+                </Button>
+              )}
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!gsc?.connected ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Connect your Google account to pull real ranking data for cannibalization detection and keyword research.</p>
+              <Button size="sm" onClick={() => window.location.href = "/api/gsc/auth"}>Connect GSC</Button>
+            </div>
+          ) : !gsc?.linked ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">GSC connected. Click Sync to auto-link the property matching &quot;{client.domain}&quot;.</p>
+              <Button size="sm" onClick={handleGscSync}>Sync GSC</Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {gsc.syncError && (
+                <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{gsc.syncError}</div>
+              )}
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span>{gsc.siteUrl}</span>
+                <span>{gsc.pageCount} pages</span>
+                <span>{gsc.queryCount} queries</span>
+                {gsc.lastSyncAt && <span>Last sync: {new Date(gsc.lastSyncAt).toLocaleDateString()}</span>}
+              </div>
+              {gsc.topQueries.length > 0 && (
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {gsc.topQueries.map((q, i) => (
+                    <div key={i} className="text-sm flex items-center gap-3">
+                      <span className="text-muted-foreground w-8 text-right shrink-0">#{q.avgPosition.toFixed(0)}</span>
+                      <span className="truncate flex-1">{q.query}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">{q.impressions} imp</span>
+                      <span className="text-xs text-muted-foreground shrink-0">{q.clicks} clicks</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </CardContent>

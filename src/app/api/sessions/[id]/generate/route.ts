@@ -26,12 +26,33 @@ export async function POST(
     data: { status: "generating_candidates", error: null },
   });
 
+  // Load GSC ranking data if available
+  let gscTopQueries: { query: string; clicks: number; impressions: number; avgPosition: number; page: string }[] = [];
+  const gscProperty = await prisma.gscProperty.findUnique({
+    where: { clientId: session.client.id },
+  });
+  if (gscProperty) {
+    const queries = await prisma.gscQuery.findMany({
+      where: { propertyId: gscProperty.id },
+      orderBy: { impressions: "desc" },
+      take: 100,
+    });
+    gscTopQueries = queries.map((q) => ({
+      query: q.query,
+      clicks: q.clicks,
+      impressions: q.impressions,
+      avgPosition: q.avgPosition,
+      page: q.page,
+    }));
+  }
+
   // Fire-and-forget candidate generation
   generateCandidates({
     onboardingSummary: session.client.onboardingSummary,
     clientDA: session.client.da,
     existingPages: session.client.pages.map((p: { url: string; inferredKeyword: string | null }) => `${p.url}${p.inferredKeyword ? ` (targets: ${p.inferredKeyword})` : ""}`),
     scope: session.scope,
+    gscTopQueries,
   })
     .then(async (candidates) => {
       // Store candidates

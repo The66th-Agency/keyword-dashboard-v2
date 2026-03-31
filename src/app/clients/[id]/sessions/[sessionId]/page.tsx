@@ -85,6 +85,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
   const [screenResults, setScreenResults] = useState<ScreenResult[] | null>(null);
   const [screenError, setScreenError] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [gscContext, setGscContext] = useState<Record<string, {
+    existingRanking: { query: string; page: string; avgPosition: number; impressions: number; clicks: number }[];
+    cannibalization: { query: string; severity: string; pages: { url: string; avgPosition: number; impressions: number }[] }[];
+  }>>({});
 
   const fetchSession = useCallback(async () => {
     const res = await fetch(`/api/sessions/${sessionId}`);
@@ -96,6 +100,23 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
   }, [sessionId]);
 
   useEffect(() => { fetchSession(); }, [fetchSession]);
+
+  // Fetch GSC ranking context for keywords in review
+  useEffect(() => {
+    if (!session?.analyses) return;
+    const pending = session.analyses.filter((a) => a.status === "complete" && a.reviewStatus === "pending_review");
+    for (const analysis of pending) {
+      if (gscContext[analysis.keyword]) continue; // Already fetched
+      fetch(`/api/clients/${clientId}/gsc-data?type=cannibalization&keyword=${encodeURIComponent(analysis.keyword)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.existingRanking || data.cannibalization) {
+            setGscContext((prev) => ({ ...prev, [analysis.keyword]: data }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [session?.analyses, clientId]);
 
   useEffect(() => {
     if (session?.status === "generating_candidates" || session?.status === "analyzing_batch") {
@@ -583,6 +604,34 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
                   )}
                   {confNote.recommendation && (
                     <p className="text-xs font-medium">{confNote.recommendation}</p>
+                  )}
+
+                  {/* GSC Ranking Context */}
+                  {gscContext[analysis.keyword] && (
+                    <div className="space-y-1 rounded-md bg-muted/30 px-3 py-2">
+                      <p className="text-xs font-medium">GSC Ranking Context</p>
+                      {gscContext[analysis.keyword].cannibalization.length > 0 && (
+                        <div className="space-y-0.5">
+                          {gscContext[analysis.keyword].cannibalization.map((c, i) => (
+                            <div key={i} className="text-xs text-destructive">
+                              {c.severity} cannibalization: &quot;{c.query}&quot; — {c.pages.map((p) => `${new URL(p.url).pathname} (pos ${p.avgPosition.toFixed(1)})`).join(" vs ")}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {gscContext[analysis.keyword].existingRanking.length > 0 && (
+                        <div className="space-y-0.5">
+                          {gscContext[analysis.keyword].existingRanking.slice(0, 5).map((r, i) => (
+                            <div key={i} className="text-xs text-muted-foreground">
+                              Already ranking: &quot;{r.query}&quot; — pos {r.avgPosition.toFixed(1)}, {r.impressions} imp ({new URL(r.page).pathname})
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {gscContext[analysis.keyword].cannibalization.length === 0 && gscContext[analysis.keyword].existingRanking.length === 0 && (
+                        <p className="text-xs text-muted-foreground">No existing ranking data found for this query.</p>
+                      )}
+                    </div>
                   )}
 
                   <Separator />

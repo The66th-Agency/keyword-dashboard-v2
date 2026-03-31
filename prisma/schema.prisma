@@ -19,6 +19,7 @@ model Client {
   onboardingSummary String?  @db.Text // JSON from Claude Sonnet extraction
   pages             ExistingPage[]
   sessions          ResearchSession[]
+  gscProperty       GscProperty?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
@@ -98,6 +99,64 @@ model KeywordAnalysis {
 
   @@index([sessionId])
   @@index([candidateId])
+}
+
+// --- GSC Integration ---
+
+model GscToken {
+  id           String   @id @default("singleton") // Singleton: one agency-level OAuth token
+  accessToken  String   @db.Text                  // AES-256-GCM encrypted
+  refreshToken String   @db.Text                  // AES-256-GCM encrypted
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model GscProperty {
+  id         String     @id @default(uuid())
+  clientId   String     @unique
+  client     Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  siteUrl    String                              // "sc-domain:example.com" or "https://www.example.com/"
+  lastSyncAt DateTime?
+  syncStatus String     @default("idle")         // idle | syncing | failed
+  syncError  String?    @db.Text
+  pages      GscPage[]
+  queries    GscQuery[]
+  createdAt  DateTime   @default(now())
+
+  @@index([clientId])
+}
+
+model GscPage {
+  id           String      @id @default(uuid())
+  propertyId   String
+  property     GscProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  url          String
+  clicks       Int         @default(0)
+  impressions  Int         @default(0)
+  ctr          Float       @default(0)
+  avgPosition  Float       @default(0)
+  lastSyncDate String                            // ISO date of latest data included
+
+  @@unique([propertyId, url])
+  @@index([propertyId])
+}
+
+model GscQuery {
+  id           String      @id @default(uuid())
+  propertyId   String
+  property     GscProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  query        String
+  page         String                            // URL this query appeared on
+  clicks       Int         @default(0)
+  impressions  Int         @default(0)
+  ctr          Float       @default(0)
+  avgPosition  Float       @default(0)
+  lastSyncDate String                            // ISO date
+
+  @@unique([propertyId, query, page])
+  @@index([propertyId, query])
+  @@index([propertyId, page])
 }
 
 model DailyUsage {

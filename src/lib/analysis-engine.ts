@@ -37,6 +37,11 @@ export async function runBatchAnalysis(sessionId: string) {
     where: { clientId: client.id },
   });
 
+  // Get GSC property for this client (if linked)
+  const gscProperty = await prisma.gscProperty.findUnique({
+    where: { clientId: client.id },
+  });
+
   // Get all approved keywords across ALL sessions for this client (cannibalization)
   const approvedKeywords = await prisma.keywordCandidate.findMany({
     where: {
@@ -87,7 +92,7 @@ export async function runBatchAnalysis(sessionId: string) {
           continue;
         }
 
-        await analyzeKeyword(analysis.id, candidate.keyword, client, onboardingSummary, existingPages, approvedKeywords, screenedVolume, screenedKd);
+        await analyzeKeyword(analysis.id, candidate.keyword, client, onboardingSummary, existingPages, approvedKeywords, screenedVolume, screenedKd, gscProperty?.id);
 
         // Mark candidate as analyzed
         await prisma.keywordCandidate.update({
@@ -126,7 +131,8 @@ async function analyzeKeyword(
   existingPages: { url: string; title: string | null; inferredKeyword: string | null }[],
   approvedKeywords: { keyword: string }[],
   screenedVolume?: number,
-  screenedKd?: number
+  screenedKd?: number,
+  gscPropertyId?: string
 ) {
   // Step 1: Mangools SERP (with web search fallback on 500)
   await prisma.keywordAnalysis.update({
@@ -332,16 +338,61 @@ async function analyzeKeyword(
     data: { semanticVariations: JSON.stringify(semanticVariations) },
   });
 
-  // Step 6: Cannibalization check
+  // Step 6: Cannibalization check (GSC-powered when available, word-overlap fallback)
   const cannibalizationFlags: string[] = [];
+  const gscFlaggedUrls = new Set<string>();
 
-  // Check against existing pages
+  if (gscPropertyId) {
+    // GSC-powered cannibalization: find queries matching this keyword with 50+ impressions
+    const gscMatches = await prisma.gscQuery.findMany({
+      where: {
+        propertyId: gscPropertyId,
+        query: { contains: keywordLower, mode: "insensitive" },
+        impressions: { gte: 50 },
+      },
+    });
+
+    // Group by query, find queries with multiple pages
+    const queryPageMap = new Map<string, typeof gscMatches>();
+    for (const row of gscMatches) {
+      const existing = queryPageMap.get(row.query) || [];
+      existing.push(row);
+      queryPageMap.set(row.query, existing);
+    }
+
+    for (const [query, pages] of queryPageMap) {
+      if (pages.length < 2) continue;
+
+      // Check 3-rank proximity between any two pages
+      const positions = pages
+        .map((p) => ({ url: p.page, pos: p.avgPosition, imp: p.impressions }))
+        .sort((a, b) => a.pos - b.pos);
+
+      for (let i = 0; i < positions.length - 1; i++) {
+        const gap = Math.abs(positions[i].pos - positions[i + 1].pos);
+        if (gap <= 3) {
+          const totalImp = positions[i].imp + positions[i + 1].imp;
+          const minShare = Math.min(positions[i].imp, positions[i + 1].imp) / totalImp;
+          const severity = minShare > 0.35 ? "HIGH" : minShare > 0.15 ? "MEDIUM" : "LOW";
+
+          cannibalizationFlags.push(
+            `${severity} cannibalization (GSC) for "${query}": ${positions[i].url} (pos ${positions[i].pos.toFixed(1)}) vs ${positions[i + 1].url} (pos ${positions[i + 1].pos.toFixed(1)}) — ${(minShare * 100).toFixed(0)}/${((1 - minShare) * 100).toFixed(0)} impression split`
+          );
+          gscFlaggedUrls.add(positions[i].url);
+          gscFlaggedUrls.add(positions[i + 1].url);
+        }
+      }
+    }
+  }
+
+  // Fallback: word-overlap check against existing pages (skip URLs already flagged by GSC)
   for (const page of existingPages) {
+    if (gscFlaggedUrls.has(page.url)) continue;
     if (
       page.inferredKeyword?.toLowerCase().includes(keywordLower) ||
       page.url.toLowerCase().includes(keywordLower.replace(/\s+/g, "-"))
     ) {
-      cannibalizationFlags.push(`Potential overlap with existing page: ${page.url}`);
+      cannibalizationFlags.push(`Potential overlap with existing page (no GSC data): ${page.url}`);
     }
   }
 
@@ -350,7 +401,6 @@ async function analyzeKeyword(
     if (approved.keyword.toLowerCase() === keywordLower) {
       cannibalizationFlags.push(`Exact match with previously approved keyword: "${approved.keyword}"`);
     }
-    // Check semantic similarity via word overlap
     const approvedWords = new Set(approved.keyword.toLowerCase().split(/\s+/));
     const currentWords = keywordLower.split(/\s+/);
     const overlap = currentWords.filter((w) => approvedWords.has(w)).length;

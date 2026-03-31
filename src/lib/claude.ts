@@ -59,6 +59,7 @@ export async function generateCandidates(params: {
   clientDA: number;
   existingPages: string[];
   scope: string;
+  gscTopQueries?: { query: string; clicks: number; impressions: number; avgPosition: number; page: string }[];
 }): Promise<CandidateOutput[]> {
   const system = `You are an expert SEO keyword researcher for The 66th, an SEO agency. You suggest keyword candidates based on deep understanding of the client's business, their domain authority, and search intent.
 
@@ -93,7 +94,15 @@ Client DA: ${params.clientDA}
 
 Existing client pages (do NOT suggest keywords these already target):
 ${params.existingPages.length > 0 ? params.existingPages.join("\n") : "No existing pages found"}
+${params.gscTopQueries && params.gscTopQueries.length > 0 ? `
+Google Search Console data (what this site currently ranks for in Google):
+${params.gscTopQueries.slice(0, 50).map((q) => `"${q.query}" — pos ${q.avgPosition.toFixed(1)}, ${q.impressions} imp, ${q.clicks} clicks (${q.page})`).join("\n")}
 
+Use this GSC data to:
+1. AVOID suggesting keywords the client already ranks well for (position < 10)
+2. FIND gap opportunities: queries with high impressions but poor position (> 20) - these are push-to-page-1 candidates
+3. IDENTIFY cluster opportunities: related queries the client ranks for that could anchor new content
+` : ""}
 Scope: ${params.scope}
 
 Generate ${generateTarget} keyword candidates (3x the scope target - the human reviews all of these and selects the best ones before any research runs, so give them plenty of range). Spread across short-tail, mid-tail, and long-tail. Be specific and non-obvious. Think like the client's ideal customer at different stages of awareness.`;
