@@ -117,8 +117,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [gscContext, setGscContext] = useState<Record<string, {
-    existingRanking: { query: string; page: string; avgPosition: number; impressions: number; clicks: number }[];
-    cannibalization: { query: string; severity: string; pages: { url: string; avgPosition: number; impressions: number }[] }[];
+    existingRanking: { query: string; page: string; avgPosition: number; impressions: number; clicks: number; urlType: string; action: string; suggestion: string; isQuickWin: boolean }[];
+    cannibalization: { query: string; severity: string; suggestion: string; pages: { url: string; avgPosition: number; impressions: number; clicks: number; urlType: string; impressionShare: number }[] }[];
   }>>({});
 
   const fetchSession = useCallback(async () => {
@@ -619,6 +619,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
                       <span className="font-numbers text-[#B1E5E3]">{analysis.volume.toLocaleString()}</span>
                       <span className={`font-numbers ${kdColor(analysis.kd)}`}>KD {analysis.kd}</span>
                       <Badge variant="outline" className="text-xs h-4 px-1">{analysis.intentConfirmation || cand?.funnelStage}</Badge>
+                      {gscContext[analysis.keyword]?.existingRanking.some((er) => er.isQuickWin) && (
+                        <Badge variant="default" className="text-xs h-4 px-1 bg-[#006FFF]/20 text-[#006FFF]">QW</Badge>
+                      )}
+                      {gscContext[analysis.keyword]?.cannibalization.length > 0 && (
+                        <Badge variant="destructive" className="text-xs h-4 px-1">C</Badge>
+                      )}
                       <span className={`ml-auto text-xs font-medium ${r.text}`}>{r.label}</span>
                     </div>
                   </button>
@@ -812,21 +818,54 @@ export default function SessionPage({ params }: { params: Promise<{ id: string; 
                     {gscContext[a.keyword] && (gscContext[a.keyword].cannibalization.length > 0 || gscContext[a.keyword].existingRanking.length > 0) && (
                       <>
                         <button onClick={() => toggleSection("gsc")} className="w-full text-left flex items-center justify-between text-xs font-medium text-[#B1E5E3] hover:text-[#B1E5E3]/80 transition-colors">
-                          <span>GSC Ranking Context</span>
+                          <span>GSC Ranking Context {gscContext[a.keyword].cannibalization.length > 0 && <Badge variant="destructive" className="text-xs ml-2">{gscContext[a.keyword].cannibalization.length} cannibalization</Badge>}</span>
                           <span className="text-muted-foreground">{expandedSections.has("gsc") ? "▾" : "▸"}</span>
                         </button>
                         {expandedSections.has("gsc") && (
-                          <div className="space-y-1.5 rounded-lg bg-[#10131C]/50 px-3 py-2.5">
+                          <div className="space-y-4 rounded-lg bg-[#10131C]/50 px-3 py-3">
+                            {/* Cannibalization issues */}
                             {gscContext[a.keyword].cannibalization.map((ca, i) => (
-                              <div key={i} className="text-xs text-destructive">
-                                {ca.severity} cannibalization: &quot;{ca.query}&quot; — {ca.pages.map((p) => `${new URL(p.url).pathname} (pos ${p.avgPosition.toFixed(1)})`).join(" vs ")}
+                              <div key={`cann-${i}`} className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="destructive" className="text-xs">{ca.severity}</Badge>
+                                  <span className="text-xs font-medium text-foreground">&quot;{ca.query}&quot;</span>
+                                </div>
+                                <div className="space-y-1 ml-2">
+                                  {ca.pages.map((p, j) => (
+                                    <div key={j} className="text-xs flex items-center gap-2">
+                                      <span className="font-numbers text-foreground">#{p.avgPosition.toFixed(0)}</span>
+                                      <span className="text-muted-foreground truncate">{new URL(p.url).pathname}</span>
+                                      <Badge variant="outline" className="text-xs h-4 px-1">{p.urlType}</Badge>
+                                      <span className="text-muted-foreground font-numbers ml-auto">{p.impressionShare}%</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <p className="text-xs text-amber-400 ml-2">{ca.suggestion}</p>
                               </div>
                             ))}
-                            {gscContext[a.keyword].existingRanking.slice(0, 5).map((r, i) => (
-                              <div key={i} className="text-xs text-muted-foreground">
-                                Ranking: &quot;{r.query}&quot; — pos <span className="font-numbers">{r.avgPosition.toFixed(1)}</span>, <span className="font-numbers">{r.impressions}</span> imp
+
+                            {/* Existing rankings with actions */}
+                            {gscContext[a.keyword].existingRanking.length > 0 && (
+                              <div className="space-y-2">
+                                {gscContext[a.keyword].cannibalization.length > 0 && <Separator />}
+                                {gscContext[a.keyword].existingRanking.slice(0, 8).map((r, i) => (
+                                  <div key={`rank-${i}`} className="space-y-1">
+                                    <div className="text-xs flex items-center gap-2">
+                                      <span className="font-numbers text-foreground w-6">#{r.avgPosition.toFixed(0)}</span>
+                                      <span className="text-muted-foreground">&quot;{r.query}&quot;</span>
+                                      <span className="font-numbers text-muted-foreground ml-auto">{r.impressions} imp</span>
+                                    </div>
+                                    <div className="text-xs flex items-center gap-2 ml-8">
+                                      <span className="text-muted-foreground/70 truncate">{new URL(r.page).pathname}</span>
+                                      <Badge variant="outline" className="text-xs h-4 px-1">{r.urlType}</Badge>
+                                      <Badge variant={r.action === "Create New Page" ? "default" : r.action === "Strengthen" ? "secondary" : "outline"} className="text-xs h-4 px-1">{r.action}</Badge>
+                                      {r.isQuickWin && <Badge variant="default" className="text-xs h-4 px-1 bg-[#006FFF]/20 text-[#006FFF]">Quick Win</Badge>}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground/70 ml-8">{r.suggestion}</p>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            )}
                           </div>
                         )}
                       </>
