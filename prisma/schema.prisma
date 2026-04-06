@@ -59,6 +59,8 @@ model KeywordCandidate {
   rationale   String           @db.Text
   funnelStage String           // BOF | MOF | TOF
   tailLength  String?          // short | mid | long
+  icp         String?          // Target ICP from onboarding (e.g. "strata managers", "homeowners")
+  icpInferred Boolean          @default(false) // true = Claude guessed ICP not explicitly in onboarding doc
   volume      Int              @default(-1) // -1 = not yet screened, 0 = confirmed zero
   kd          Int              @default(-1) // -1 = not yet screened
   status      String           @default("pending") // pending | selected | skipped | analyzed | approved | rejected | redirected

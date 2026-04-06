@@ -62,7 +62,8 @@ export async function POST(
           keyword: c.keyword,
           rationale: c.rationale,
           funnelStage: c.funnelStage,
-          tailLength: c.tailLength || null,
+          icp: c.icp || null,
+          icpInferred: c.icpInferred || false,
           status: "pending",
         })),
       });

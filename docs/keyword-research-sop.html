@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keyword Research Workflow - The 66th</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a0a; --surface: #111; --surface-raised: #1a1a1a;
+    --border: #222; --border-subtle: #1c1c1c;
+    --text: #e5e5e5; --text-dim: #a0a0a0; --text-muted: #666;
+    --blue: #3b82f6; --blue-dim: rgba(59,130,246,.12); --blue-border: rgba(59,130,246,.3);
+    --amber: #f59e0b; --amber-dim: rgba(245,158,11,.1); --amber-border: rgba(245,158,11,.25);
+    --green: #10b981; --green-dim: rgba(16,185,129,.1); --green-border: rgba(16,185,129,.25);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.72; font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .c { max-width: 780px; margin: 0 auto; padding: 56px 32px 80px; }
+
+  /* Header */
+  .hdr { margin-bottom: 52px; padding-bottom: 36px; border-bottom: 1px solid var(--border); position: relative; }
+  .hdr::after { content:''; position:absolute; bottom:-1px; left:0; width:120px; height:2px; background:linear-gradient(90deg,var(--blue),transparent); }
+  .hdr-tag { font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--blue); margin-bottom:14px; }
+  h1 { font-size:30px; font-weight:700; color:#fff; letter-spacing:-.4px; margin-bottom:6px; }
+  .hdr-sub { font-size:15px; color:var(--text-dim); }
+
+  /* Headings */
+  h2 { font-size:21px; font-weight:600; color:#fff; margin:52px 0 18px; letter-spacing:-.3px; padding-bottom:10px; border-bottom:1px solid var(--border-subtle); position:relative; }
+  h2::after { content:''; position:absolute; bottom:-1px; left:0; width:56px; height:2px; background:linear-gradient(90deg,var(--blue),transparent); }
+  h3 { font-size:15px; font-weight:600; color:var(--text); margin:24px 0 8px; }
+
+  p { margin-bottom:13px; color:var(--text-dim); }
+  strong { color:var(--text); font-weight:600; }
+  code { font-family:'SF Mono','Consolas',monospace; font-size:13px; background:var(--surface-raised); padding:2px 6px; border-radius:4px; color:var(--blue); border:1px solid var(--border); }
+
+  /* Prereq cards */
+  .pq { list-style:none; counter-reset:pq; margin:14px 0; }
+  .pq li { counter-increment:pq; position:relative; padding:13px 16px 13px 50px; margin-bottom:7px; background:var(--surface); border-radius:8px; border:1px solid var(--border); color:var(--text-dim); line-height:1.6; }
+  .pq li::before { content:counter(pq); position:absolute; left:15px; top:13px; width:23px; height:23px; background:var(--blue-dim); border:1px solid var(--blue-border); color:var(--blue); font-size:12px; font-weight:700; border-radius:6px; display:flex; align-items:center; justify-content:center; }
+
+  /* Sub-steps */
+  .ss { margin:18px 0; padding:14px 18px; background:var(--surface); border-left:3px solid var(--blue-border); border-radius:0 8px 8px 0; }
+  .ss-label { font-size:13px; font-weight:700; color:var(--blue); margin-bottom:5px; }
+  .ss p { margin-bottom:7px; } .ss p:last-child { margin-bottom:0; }
+
+  /* Callouts */
+  .co { margin:18px 0; padding:14px 18px; border-radius:8px; border-left:3px solid; font-size:14px; }
+  .co-blue { background:var(--blue-dim); border-color:var(--blue); }
+  .co-amber { background:var(--amber-dim); border-color:var(--amber); }
+  .co-green { background:var(--green-dim); border-color:var(--green); }
+  .co-tag { font-weight:600; font-size:12px; letter-spacing:.5px; text-transform:uppercase; margin-bottom:5px; }
+  .co-blue .co-tag { color:var(--blue); } .co-amber .co-tag { color:var(--amber); } .co-green .co-tag { color:var(--green); }
+  .co p { margin:0; color:var(--text-dim); line-height:1.6; }
+
+  /* Table */
+  .tw { margin:22px 0; border-radius:8px; overflow:hidden; border:1px solid var(--border); }
+  .tw-title { font-size:12px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:var(--blue); padding:12px 18px; background:var(--surface); border-bottom:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  thead th { background:var(--surface-raised); color:var(--text); font-weight:600; font-size:12px; letter-spacing:.5px; text-transform:uppercase; padding:11px 15px; text-align:left; border-bottom:1px solid var(--border); }
+  tbody td { padding:10px 15px; border-bottom:1px solid var(--border-subtle); color:var(--text-dim); vertical-align:top; }
+  tbody tr:nth-child(even) { background:rgba(255,255,255,.015); }
+  tbody tr:last-child td { border-bottom:none; }
+  td:first-child { font-weight:600; color:var(--text); white-space:nowrap; }
+  td:last-child { font-size:13px; color:var(--text-muted); font-style:italic; }
+
+  /* Lists */
+  ul, ol { margin:10px 0 10px 20px; color:var(--text-dim); }
+  li { margin-bottom:5px; line-height:1.6; }
+
+  /* Sheet fields */
+  .fields { margin:10px 0 10px 0; }
+  .fields li { margin-bottom:3px; color:var(--text-dim); }
+
+  /* Divider */
+  hr.div { height:1px; background:linear-gradient(90deg,transparent,var(--border),transparent); margin:44px 0; border:none; }
+
+  /* Rules box */
+  .rules { margin-top:52px; padding:28px 24px; background:linear-gradient(135deg,rgba(59,130,246,.06),rgba(16,185,129,.04)); border:1px solid var(--blue-border); border-radius:12px; position:relative; overflow:hidden; }
+  .rules::before { content:''; position:absolute; top:0; left:0; width:100%; height:3px; background:linear-gradient(90deg,var(--blue),var(--green),var(--blue)); }
+  .rules h2 { margin-top:0; border-bottom:none; padding-bottom:0; font-size:19px; }
+  .rules h2::after { display:none; }
+  .rl { list-style:none; counter-reset:rl; margin-top:18px; }
+  .rl li { counter-increment:rl; position:relative; padding:9px 0 9px 34px; color:var(--text-dim); line-height:1.65; border-bottom:1px solid rgba(255,255,255,.04); }
+  .rl li:last-child { border-bottom:none; padding-bottom:0; }
+  .rl li::before { content:counter(rl); position:absolute; left:0; top:11px; font-size:12px; font-weight:700; color:var(--blue); width:20px; text-align:center; }
+
+  .footer { margin-top:60px; padding-top:20px; border-top:1px solid var(--border); text-align:center; font-size:12px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; }
+
+  /* Print */
+  @media print {
+    :root { --bg:#fff; --surface:#f8f8f8; --surface-raised:#f0f0f0; --border:#ddd; --border-subtle:#e8e8e8; --text:#111; --text-dim:#333; --text-muted:#666; --blue:#2563eb; --blue-dim:rgba(37,99,235,.06); --blue-border:rgba(37,99,235,.3); --amber:#d97706; --amber-dim:rgba(217,119,6,.06); --green:#059669; --green-dim:rgba(5,150,105,.06); }
+    body { background:#fff; color:#111; font-size:12px; line-height:1.5; }
+    .c { max-width:100%; padding:20px 0; }
+    h1 { font-size:24px; color:#111; } h2 { font-size:18px; margin-top:28px; color:#111; page-break-after:avoid; }
+    .ss, .co, .pq li, .rules, .tw { page-break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="c">
+
+<div class="hdr">
+  <div class="hdr-tag">The 66th</div>
+  <h1>Keyword Research Workflow</h1>
+  <div class="hdr-sub">Deep Research SOP v2 - Internal Use Only</div>
+</div>
+
+<!-- Prerequisites -->
+<h2>Prerequisites (before any research starts)</h2>
+<ol class="pq">
+  <li>Client fills the onboarding document completely. This is the single source of truth - services, locations, ICPs, competitors, content guardrails, voice. No research starts without this.</li>
+  <li>Check client's domain authority using Mangools Site Profiler. Write it down. This number gates every keyword decision you make.</li>
+  <li>Set up Claude project with the onboarding doc uploaded. Add the copywriter skill file. Have Claude read all documents and confirm understanding before prompting anything.</li>
+</ol>
+
+<hr class="div">
+
+<!-- Step 1 -->
+<h2>Step 1: Generate keyword candidates</h2>
+<p>Prompt Claude (with onboarding doc context) to suggest bottom of funnel keyword ideas based on the client's services, locations, and ICPs. Claude will generate a list grounded in what the client actually offers. Do not invent keywords for services the client doesn't provide. If you're unsure, check the onboarding doc.</p>
+<p>For local businesses, candidates should include city/region modifiers (e.g. <code>roof cleaning Vancouver</code>). For SaaS or national brands, filter by country in Mangools or use "anywhere."</p>
+
+<hr class="div">
+
+<!-- Step 2 -->
+<h2>Step 2: Initial keyword screening in Mangools</h2>
+<p>For each candidate keyword, search it in Mangools KWFinder filtered by the correct country.</p>
+<p>Check two things:</p>
+
+<h3>Search volume:</h3>
+<p>For BOF keywords, volume does not need to be high. 10 people searching where 4 convert is better than 10,000 with zero conversions. For clients with DA 8-15, look for 10-200 volume. For brand new sites with DA under 5, zero-volume keywords are acceptable for building topical authority. Higher DA clients can target higher volume, more competitive keywords.</p>
+
+<h3>SERP competitor DAs:</h3>
+<p>Compare the domain authorities ranking on page 1 against your client's DA. If competitors are in a similar range (within 10-20 points), the keyword is potentially feasible. If competitors are 60+ DA and your client is under 15, it's likely not winnable unless nobody is directly targeting the keyword.</p>
+
+<!-- DA Rubric Table -->
+<div class="tw">
+  <div class="tw-title">DA Rubric - Volume &amp; Competition Targeting</div>
+  <table>
+    <thead><tr><th>Client DA</th><th>Target Volume</th><th>Top Competitor DA</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>0-5</td><td>0-50 OK</td><td>&lt; 25 ideal</td><td>Topical authority play. Zero volume is fine. Long-tail niche.</td></tr>
+      <tr><td>5-15</td><td>10-200</td><td>&lt; 35 ideal</td><td>Sweet spot for local businesses. BOF low-competition.</td></tr>
+      <tr><td>15-30</td><td>50-500</td><td>&lt; 45 viable</td><td>Mix of mid and long-tail. Can push into moderate competition.</td></tr>
+      <tr><td>30-50</td><td>100-2000</td><td>&lt; 60 viable</td><td>Mid-range terms. Competitive keywords within reach.</td></tr>
+      <tr><td>50+</td><td>No cap</td><td>No cap</td><td>Can go after head terms. DA advantage opens everything.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h3>Feasibility check (per keyword)</h3>
+<ul>
+  <li>Client DA within <strong>10-20 points</strong> of top SERP competitors = feasible</li>
+  <li>Gap of <strong>30+</strong> = stretch, needs exceptional on-page work</li>
+  <li>Gap of <strong>40+</strong> = likely not winnable unless nobody is targeting the keyword</li>
+</ul>
+
+<div class="co co-green">
+  <div class="co-tag">Override Rule</div>
+  <p>If no one on page 1 is directly targeting the keyword (not in title, H1, URL) AND content is thin, feasibility improves regardless of DA gap. This is the biggest opportunity signal.</p>
+</div>
+
+<div class="co co-amber">
+  <div class="co-tag">Volume 0 Rule</div>
+  <p><strong>DA 0-5:</strong> acceptable, proceed.<br><strong>DA 6+:</strong> flag for review, cross-check with GSC/Keyword Planner before committing.</p>
+</div>
+
+<p>Take the KD score with a grain of salt. The SERP results tell you more than the number.</p>
+
+<hr class="div">
+
+<!-- Step 3 -->
+<h2>Step 3: SERP analysis (the core of the process)</h2>
+<p>This is where the real work happens. For each keyword that passes screening, go through the top 3-5 SERP results and assess:</p>
+
+<div class="ss">
+  <div class="ss-label">A. Confirm the intent.</div>
+  <p>Is this actually bottom of funnel? Look at what's ranking. If the results are landing pages, service pages, and homepages, it's BOF. If blogs and articles are ranking, it's top of funnel. If it's listicles and comparison pages ("best X", "X alternatives"), it's middle of funnel. The SERP tells you what Google considers the intent, not your assumption.</p>
+</div>
+
+<div class="ss">
+  <div class="ss-label">B. Check if competitors are directly targeting the keyword.</div>
+  <p>Use the Detailed SEO extension or inspect the page. Check: is the keyword in their title tag? In their H1? In their URL slug? In their first sentence? If nobody on page 1 is actually targeting the keyword properly, that's a major opportunity. Note this in your sheet.</p>
+</div>
+
+<div class="ss">
+  <div class="ss-label">C. Analyse the URL structure.</div>
+  <p>Look at the URL of each ranking page. Is it domain.com/services/keyword-slug? Or is it their homepage? A dedicated page with the keyword in the slug means they're intentionally targeting it. A homepage ranking means they're ranking on domain authority, not on-page optimization.</p>
+</div>
+
+<div class="ss">
+  <div class="ss-label">D. Analyse the content.</div>
+  <p>Open each of the top 3 results. Note: what does the page look like? What sections do they have? Is it a long page or short? What's the word count range? What images/assets do they use? Is there a clear CTA? Is there an FAQ section?</p>
+</div>
+
+<div class="ss">
+  <div class="ss-label">E. Find commonalities.</div>
+  <p>Copy the main body content from the top 3 results. Paste into a Claude chat (use a new chat to save tokens). Prompt:</p>
+  <p>"I searched [keyword]. Here are the top 3 results. Tell me what they have in common in terms of content, depth, structure, word count, and what areas could be improved."</p>
+  <p>This tells you what Google is rewarding.</p>
+</div>
+
+<div class="ss">
+  <div class="ss-label">F. Find gaps specific to your client.</div>
+  <p>In the same Claude chat, ask:</p>
+  <p>"What is missing that [client name] could implement to outrank them?"</p>
+  <p>Claude will use the onboarding doc context to give client-specific recommendations.</p>
+</div>
+
+<div class="ss">
+  <div class="ss-label">G. Check if competitors are targeting the keyword with the Mangools Opps indicator.</div>
+  <p>If the Mangools SERP view shows "Missing Title Words" for the top results, that confirms weak on-page targeting. Note this.</p>
+</div>
+
+<hr class="div">
+
+<!-- Step 4 -->
+<h2>Step 4: Document everything in the Google Sheet</h2>
+<p>For each keyword, fill in:</p>
+<ul class="fields">
+  <li>Keyword</li>
+  <li>Search volume</li>
+  <li>Top competitor DA</li>
+  <li>Is it BOF / MOF / TOF? (confirmed by SERP, not guessed)</li>
+  <li>Is the competitor directly targeting the keyword? (Yes / No / Partial)</li>
+  <li>Notes and observations (the most important column - what did the SERP tell you?)</li>
+</ul>
+<p>Create a separate Google Doc per keyword with the Claude analysis output (commonalities, gaps, content recommendations). Link it from the sheet for reference.</p>
+
+<hr class="div">
+
+<!-- Step 5 -->
+<h2>Step 5: Check for secondary keywords and cannibalization</h2>
+<p>For each primary keyword, check 1-2 semantic variations from Mangools' related keywords list. For example, if your primary keyword is "3D rendering Vancouver," check "architectural visualization Vancouver."</p>
+<p>Search the variation in Mangools and compare the SERP results against the primary keyword's SERP.</p>
+<p><strong>If the same websites appear in both SERPs:</strong> This is a secondary keyword. Add it to the same page as the primary keyword. Do not create a separate page. Add a row in the sheet marked "secondary" with a note explaining the SERP overlap.</p>
+<p><strong>If completely different websites appear:</strong> This needs its own separate page. Add it as a new primary keyword and run the full analysis on it.</p>
+<p>This prevents keyword cannibalization, which is when two of your own pages compete against each other for the same SERP position.</p>
+
+<hr class="div">
+
+<!-- Step 6 -->
+<h2>Step 6: Validate against client offerings</h2>
+<p>Before finalizing any keyword, check the onboarding document. Does the client actually offer this service or product? If a keyword implies massages but the client doesn't offer massages, drop it. Accuracy is non-negotiable. Getting this wrong erodes trust and loses clients.</p>
+
+<hr class="div">
+
+<!-- Step 7 -->
+<h2>Step 7: Recommended page structure (optional but valuable)</h2>
+<p>For keywords you're committing to, ask Claude:</p>
+<p>"Based on the SERP analysis, provide a recommended page structure outline for a [keyword] landing page for [client name]. Include must-have sections based on what Google is rewarding and suggested improvements based on gaps in the competition."</p>
+<p>This gives you the blueprint for when you actually build the page. It should include:</p>
+<ul>
+  <li>H1</li>
+  <li>Key sections with H2s</li>
+  <li>What each section should cover</li>
+  <li>FAQ questions informed by the SERP</li>
+  <li>Metadata recommendations (title tag, meta description, URL slug)</li>
+</ul>
+
+<hr class="div">
+
+<!-- Step 8 -->
+<h2>Step 8: Human validation</h2>
+<p>Do not blindly trust Claude's keyword suggestions or SERP analysis. Cross-reference with Perplexity or manual Google searches. Flag anything that seems off. Claude can deviate - in one case it suggested branded keywords for a site that wasn't even live yet. Check the work. If something is a few degrees off early, it becomes miles off by the time you're building content.</p>
+
+<hr class="div">
+
+<!-- Rules of thumb -->
+<div class="rules">
+  <h2>Rules of thumb</h2>
+  <ol class="rl">
+    <li>Study the SERP. Find what ranking pages have in common, then find the gaps where the client can be better and more comprehensive.</li>
+    <li>Match client DA to keyword competitiveness using the rubric, but if nobody on page 1 is directly targeting the keyword and the content is thin, the DA ceiling loosens. You can target above your weight class when the competition isn't optimised.</li>
+    <li>Notes and observations are more valuable than the volume number. Be specific about what the SERP told you.</li>
+    <li>BOF volume doesn't need to be high. 10 searchers with buying intent beats 10,000 browsers.</li>
+    <li>Always check the onboarding doc before committing to a keyword. Accuracy over everything.</li>
+  </ol>
+</div>
+
+<div class="footer">The 66th - Internal SOP - v2.0 - 2026</div>
+
+</div>
+</body>
+</html>

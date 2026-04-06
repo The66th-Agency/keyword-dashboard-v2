@@ -51,7 +51,66 @@ export interface CandidateOutput {
   keyword: string;
   rationale: string;
   funnelStage: string;
-  tailLength: string; // short | mid | long
+  icp?: string;
+  icpInferred?: boolean;
+}
+
+/**
+ * Parse multi-funnel scope strings into per-funnel targets.
+ * Supports: "10 BOF, 5 MOF, 5 TOF" | "20 keywords" | "15 BOF"
+ * Returns total generate target (capped at 50) and a description for the prompt.
+ */
+function parseScope(scope: string): { generateTarget: number; scopeDescription: string } {
+  // Try multi-funnel format: "10 BOF, 5 MOF, 5 TOF"
+  const funnelPattern = /(\d+)\s*(BOF|MOF|TOF)/gi;
+  const funnelMatches = [...scope.matchAll(funnelPattern)];
+
+  if (funnelMatches.length > 1) {
+    // Multi-funnel scope
+    const parts: string[] = [];
+    let totalScope = 0;
+    for (const m of funnelMatches) {
+      const count = parseInt(m[1]);
+      const stage = m[2].toUpperCase();
+      totalScope += count;
+      parts.push(`${count} ${stage}`);
+    }
+    const generateTarget = Math.min(totalScope * 5, 50);
+    // Distribute proportionally
+    const breakdown = funnelMatches.map((m) => {
+      const count = parseInt(m[1]);
+      const stage = m[2].toUpperCase();
+      const share = Math.round((count / totalScope) * generateTarget);
+      return `~${share} ${stage}`;
+    }).join(", ");
+    return {
+      generateTarget,
+      scopeDescription: `Generate ${generateTarget} total candidates (${breakdown}). Scope: ${parts.join(", ")}.`,
+    };
+  }
+
+  // Single funnel or generic: "10 BOF keywords" or "20 keywords"
+  const numMatch = scope.match(/(\d+)/);
+  const scopeTarget = numMatch ? parseInt(numMatch[1]) : 10;
+  const generateTarget = Math.min(scopeTarget * 5, 50);
+
+  // Check if a specific funnel is mentioned
+  const singleFunnel = scope.match(/\b(BOF|MOF|TOF)\b/i);
+  if (singleFunnel) {
+    return {
+      generateTarget,
+      scopeDescription: `Generate ${generateTarget} ${singleFunnel[1].toUpperCase()} candidates (5x the scope target of ${scopeTarget}, capped at 50).`,
+    };
+  }
+
+  // Generic "20 keywords" - auto-balance 50/30/20
+  const bof = Math.round(generateTarget * 0.5);
+  const mof = Math.round(generateTarget * 0.3);
+  const tof = generateTarget - bof - mof;
+  return {
+    generateTarget,
+    scopeDescription: `Generate ${generateTarget} candidates auto-balanced: ~${bof} BOF, ~${mof} MOF, ~${tof} TOF (5x scope of ${scopeTarget}, capped at 50).`,
+  };
 }
 
 export async function generateCandidates(params: {
@@ -61,31 +120,45 @@ export async function generateCandidates(params: {
   scope: string;
   gscTopQueries?: { query: string; clicks: number; impressions: number; avgPosition: number; page: string }[];
 }): Promise<CandidateOutput[]> {
+  const daGuidance =
+    params.clientDA <= 5 ? "Focus on zero/very low volume long-tail keywords. Topical authority play from scratch." :
+    params.clientDA <= 15 ? "Target 10-200 volume keywords. Long-tail focus. Avoid competitive head terms." :
+    params.clientDA <= 30 ? "Mix of long-tail and mid-tail. Some moderate competition viable." :
+    params.clientDA <= 50 ? "Competitive keywords viable. Can target mid-range terms with confidence." :
+    "No cap on competitiveness. Can pursue high-volume head terms.";
+
   const system = `You are an expert SEO keyword researcher for The 66th, an SEO agency. You suggest keyword candidates based on deep understanding of the client's business, their domain authority, and search intent.
 
 Rules:
 - ONLY suggest keywords for services the client actually offers (check the onboarding summary)
-- Consider the client's DA when suggesting keywords. DA ${params.clientDA} means:
-  ${params.clientDA <= 5 ? "Focus on zero/very low volume long-tail keywords. Topical authority play from scratch." : ""}
-  ${params.clientDA > 5 && params.clientDA <= 15 ? "Target 10-200 volume keywords. Long-tail focus. Avoid competitive head terms." : ""}
-  ${params.clientDA > 15 && params.clientDA <= 30 ? "Mix of long-tail and mid-tail. Some moderate competition viable." : ""}
-  ${params.clientDA > 30 && params.clientDA <= 50 ? "Competitive keywords viable. Can target mid-range terms with confidence." : ""}
-  ${params.clientDA > 50 ? "No cap on competitiveness. Can pursue high-volume head terms." : ""}
-- For local businesses: include city/region IN the keyword itself (e.g. "roof cleaning Vancouver")
-- For national/SaaS: broader keywords without geo modifiers
-- Label each with funnel stage: BOF (service/product pages), MOF (comparison/listicle), TOF (educational/guide)
-- Label each with tail length: short (1-2 words e.g. "maple syrup", "maple coffee"), mid (3 words e.g. "maple syrup Canada", "organic maple coffee")
-- Split evenly: half short-tail, half mid-tail. No long-tail.
+- Consider the client's DA when suggesting keywords. DA ${params.clientDA} means: ${daGuidance}
 - Do NOT suggest keywords that already have pages (see existing pages list)
 - Provide a specific rationale for each keyword - what makes it a real opportunity, not generic filler
 
-Return valid JSON array only, no markdown fences:
-[{"keyword": "", "rationale": "", "funnelStage": "BOF|MOF|TOF", "tailLength": "short|mid"}]`;
+Geography rules:
+- Check the onboarding summary "service_geography" field to determine if this is a local or national/SaaS client
+- For LOCAL businesses: include city/region IN the keyword itself (e.g. "roof cleaning Vancouver"). Mangools filters by country, not city, so the city must be in the keyword.
+- For NATIONAL/SaaS businesses: broader keywords without geo modifiers. Filter by "anywhere."
 
-  // Parse numeric target from scope (e.g. "10 BOF keywords" -> 10), generate 3x for human filtering
-  const scopeMatch = params.scope.match(/(\d+)/);
-  const scopeTarget = scopeMatch ? parseInt(scopeMatch[1]) : 10;
-  const generateTarget = scopeTarget * 3;
+Funnel stage rules - label each candidate BOF, MOF, or TOF:
+- BOF (bottom of funnel): service pages, location pages, product pages. Direct purchase/hire intent. Patterns: "[service] [location]", "[service] near me", "[service] cost [location]", "[product] [category]"
+- MOF (middle of funnel): listicles, comparisons, cost/pricing content. Evaluation intent. Patterns: "best [category]", "[brand] vs [brand]", "[service] cost", "top [n] [category]", "[competitor] alternative"
+- TOF (top of funnel): how-to guides, educational content, seasonal/topical. Informational intent. Patterns: "how to [problem]", "what is [concept]", "[topic] guide", "when to [action]"
+
+Keyword format rules:
+- BOF candidates: service + location format. Short, searchable. Keep what works (e.g. "roof cleaning vancouver", "commercial pressure washing burnaby").
+- MOF and TOF candidates: generate SHORT, SEARCHABLE keywords that someone would actually type into Google or Mangools. 2-4 words max. No article titles, no question formats, no year tags, no "ultimate guide to" fluff. The analysis phase will suggest full page titles later. Think search queries, not headlines. Examples: "best pressure washers", "deck staining cost", "how to clean gutters" - NOT "The Ultimate Guide to Gutter Cleaning in 2026".
+
+ICP (ideal customer profile) rules:
+- If the onboarding doc lists multiple ICPs, tag each candidate with the most relevant ICP name. If a keyword is ICP-agnostic, leave icp as null.
+- For LOCAL businesses: lean toward Location OR ICP as the keyword modifier, not both stacked. Don't put city + persona into one keyword.
+- For NATIONAL/SaaS businesses: ICP modifiers are fair game alongside feature/product terms (e.g. "project management for agencies").
+- If you tag a candidate with an ICP that is NOT explicitly listed in the onboarding doc (you inferred it), set icpInferred to true. This flags it for human confirmation.
+
+Return valid JSON array only, no markdown fences:
+[{"keyword": "", "rationale": "", "funnelStage": "BOF|MOF|TOF", "icp": "string or null", "icpInferred": false}]`;
+
+  const { generateTarget, scopeDescription } = parseScope(params.scope);
 
   const prompt = `Client onboarding summary:
 ${params.onboardingSummary}
@@ -105,9 +178,9 @@ Use this GSC data to:
 ` : ""}
 Scope: ${params.scope}
 
-Generate ${generateTarget} keyword candidates (3x the scope target - the human reviews all of these and selects the best ones before any research runs, so give them plenty of range). Spread across short-tail, mid-tail, and long-tail. Be specific and non-obvious. Think like the client's ideal customer at different stages of awareness.`;
+${scopeDescription} The human reviews all candidates and selects the best ones before any Mangools research runs, so give them plenty of range. Be specific and non-obvious. Think like the client's ideal customer at different stages of awareness.`;
 
-  const response = await claudeMessage(system, prompt, 4096);
+  const response = await claudeMessage(system, prompt, 6144);
 
   try {
     return JSON.parse(response);
